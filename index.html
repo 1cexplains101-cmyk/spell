@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Fun Flashcard Spelling Game</title>
+<style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #ff9a9e, #fad0c4, #a1c4fd, #c2e9fb);
+      background-size: 400% 400%;
+      animation: bgmove 12s ease infinite;
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      overflow: hidden;
+    }
+    @keyframes bgmove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Deck and card */
+    .deck {
+      position: relative;
+      width: 420px;
+      height: 340px;
+      overflow: visible;
+    }
+
+    /* Animated diagonal stripes overlay */
+    .stripes {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-image: repeating-linear-gradient(
+        135deg,
+        rgba(255,255,255,0.06) 0 10px,
+        rgba(255,255,255,0.02) 10px 20px
+      );
+      pointer-events: none;
+      z-index: 0;
+      animation: stripeMove 8s linear infinite;
+      mix-blend-mode: overlay;
+    }
+    @keyframes stripeMove {
+      0% { background-position: 0 0; }
+      100% { background-position: 240px 0; }
+    }
+
+    /* Floating bubbles container */
+    .bubbles {
+      position:absolute;
+      top:0; left:0;
+      width:100%; height:100%;
+      pointer-events:none;
+      z-index:0;
+      overflow:visible;
+    }
+    .bubble {
+      position:absolute;
+      bottom:-40px;
+      border-radius:50%;
+      opacity:0.9;
+      pointer-events:none;
+      filter: blur(0.3px);
+      mix-blend-mode: screen;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0) translateX(0); opacity:0; }
+      10% { opacity:0.9; }
+      100% { transform: translateY(-140%) translateX(40px); opacity:0; }
+    }
+
+    .card {
+      width: 420px;
+      height: 400px;
+      perspective: 1000px;
+      position: absolute;
+      top: 20px;
+      left: 20;
+      z-index: 2;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.8s;
+      transform-style: preserve-3d;
+    }
+    .flip { transform: rotateY(180deg); }
+
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      backface-visibility: hidden;
+      box-shadow: 0 12px 25px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 18px;
+    }
+    .card-front { background: #fff; color: #333; }
+    .card-back { background: #4cafef; color: white; transform: rotateY(180deg); }
+
+    h2 { margin: 0 0 10px; }
+    .definition { font-size: 17px; margin: 10px 0; text-align: center; min-height:48px; }
+
+    /* Single dynamic audio button */
+    .audio-btn {
+      background: #4cafef;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 15px;
+      cursor: pointer;
+      margin: 6px;
+    }
+    .audio-btn:hover { background: #2196f3; }
+
+    input[type="text"] {
+      padding: 10px;
+      width: 80%;
+      margin-bottom: 12px;
+      border-radius: 10px;
+      border: 2px solid #ccc;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 16px;
+      margin: 4px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #ff6f61;
+      color: white;
+      font-weight: bold;
+      transition: transform 0.2s;
+    }
+    button:hover { transform: scale(1.05); }
+
+    .choice-btn {
+      display: block;
+      width: 90%;
+      background: #ffe5d9;
+      color: #ff6f61;
+      border: 2px solid #ffc2b3;
+      margin: 6px auto;
+    }
+    .choice-btn:hover { background: #ffd6cc; }
+
+    .progress-container {
+      position: absolute;
+      top: -20px;
+      width: 80%;
+      height: 10px;
+      background: rgba(255,255,255,0.5);
+      border-radius: 5px;
+      overflow: hidden;
+      left: 10%;
+      z-index: 3;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #ff6f61;
+      transition: width 0.4s;
+    }
+
+    .confetti {
+      position: fixed;
+      top: -10px;
+      width: 10px;
+      height: 10px;
+      background: red;
+      animation: fall 3s linear forwards;
+    }
+    @keyframes fall {
+      to { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+
+    .flash-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 9999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    /* End screen */
+    #endScreen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 12px 25px rgba(0,0,0,0.3);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 2000;
+    }
+    #missedList { margin-top: 12px; font-size: 14px; color: #444; }
+    #percentDisplay { font-size: 28px; font-weight: bold; margin-top: 10px; }
+    #streakDisplay { font-size: 16px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <div class="stripes" aria-hidden="true"></div>
+  <div class="bubbles" id="bubbleContainer" aria-hidden="true"></div>
+
+  <div class="progress-container"><div class="progress-bar" id="progress"></div></div>
+
+  <div class="card" id="gameCard">
+    <div class="card-inner" id="cardInner">
+      <!-- Front -->
+      <div class="card-front">
+        <h2>2C Spelling Quiz Practice</h2>
+        <p class="definition" id="definition">Loading...</p>
+
+        <!-- Single dynamic audio button: label / action set in JS per mode -->
+        <div>
+          <button id="audioBtn" class="audio-btn">🔊 Listen</button>
+        </div>
+
+        <div id="spellingMode">
+          <input type="text" id="answer" placeholder="Type the word..." autocomplete="off" />
+          <button onclick="checkSpelling()">Submit</button>
+        </div>
+
+        <div id="choiceMode" style="display:none;">
+          <div id="choices"></div>
+        </div>
+
+        <div id="streakDisplay">🔥 Streak: 0</div>
+      </div>
+
+      <!-- Back -->
+      <div class="card-back">
+        <h2 id="feedbackTitle">Result</h2>
+        <p id="feedback"></p>
+        <button onclick="nextQuestion()">Next Card</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Screen -->
+  <div id="endScreen">
+    <h2>🎉 Quiz Complete!</h2>
+    <p id="scoreSummary"></p>
+    <div id="percentDisplay">0%</div>
+    <div id="missedList"></div>
+    <button onclick="restartGame()">Restart</button>
+  </div>
+</div>
+
+<!-- Flash overlay element -->
+<div id="flashOverlay" class="flash-overlay"></div>
+
+<script>
+/* ---------- Word list ---------- */
+const baseWords = [
+ {word:"compassionate",definition:"Showing sympathy and concern for others; kind and caring."},
+ {word:"technologist",definition:"A person skilled in the practical application of technology."},
+ {word:"enterprising",definition:"Showing initiative and resourcefulness; ready to undertake new projects."},
+ {word:"voracious",definition:"Having a huge appetite or eager approach (for food or activities)."},
+ {word:"temperament",definition:"A person's nature that affects behavior permanently."},
+ {word:"perseverance",definition:"Continued effort despite difficulties or delay."},
+ {word:"determination",definition:"Firmness of purpose; the quality of deciding firmly."},
+ {word:"instrumental",definition:"Serving as a means or tool to achieve something important."},
+ {word:"apprehension",definition:"Anxiety or fear about the future."},
+ {word:"argumentative",definition:"Inclined to express opposing views; fond of arguing."},
+ {word:"blissful",definition:"Extremely happy; full of joy."},
+ {word:"lighthearted",definition:"Carefree and cheerful; not serious."},
+ {word:"transcendent",definition:"Beyond ordinary limits; surpassing."},
+ {word:"accommodating",definition:"Willing to help or adjust; obliging."},
+ {word:"well-respected",definition:"Held in high regard by others."},
+ {word:"changemaker",definition:"A person who brings about positive change in society."},
+ {word:"activist",definition:"Someone who campaigns for change."}
+];
+
+/* ---------- Build 34 Questions (choice = definition -> pick word; spelling = hear word -> type spelling) ---------- */
+let questions = [];
+baseWords.forEach(w=>{
+  questions.push({mode:"choice", word:w.word, definition:w.definition});   // definition -> choose correct word
+  questions.push({mode:"spelling", word:w.word, definition:w.definition}); // spelling -> hear the word and type
+});
+questions = questions.sort(()=>Math.random()-0.5);
+
+/* ---------- State ---------- */
+let currentQIndex = 0;
+let currentWord = null;
+let mode = null;
+let answered = 0;
+let score = 0;
+let missedWords = [];
+let streak = 0;
+
+/* ---------- Elements ---------- */
+const audioBtn = document.getElementById('audioBtn');
+
+/* ---------- BUBBLES on deck (ui polish) ---------- */
+function createBubbles(count=8){
+  const container = document.getElementById('bubbleContainer');
+  for(let i=0;i<count;i++){
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 8 + Math.random()*36; // px
+    b.style.width = size + 'px';
+    b.style.height = size + 'px';
+    b.style.left = (5 + Math.random()*90) + '%';
+    b.style.background = `rgba(255,255,255,${0.06 + Math.random()*0.18})`;
+    b.style.animation = `floatUp ${6 + Math.random()*8}s linear ${-Math.random()*6}s infinite`;
+    container.appendChild(b);
+  }
+}
+createBubbles(10); // create 10 floating bubbles
+
+/* ---------- Next question (no longer reveals word for spelling) ---------- */
+function nextQuestion(){
+  if(currentQIndex >= questions.length){
+    endGame();
+    return;
+  }
+
+  document.getElementById("cardInner").classList.remove("flip");
+  document.getElementById("feedback").innerText = "";
+  document.getElementById("answer").value = "";
+
+  const q = questions[currentQIndex];
+  currentWord = q;
+  mode = q.mode;
+
+  // For choice: show definition. For spelling: show instruction but DO NOT reveal the word.
+  if(mode === "choice"){
+    document.getElementById("definition").innerText = q.definition;
+    // set audio button to definition and auto-speak
+    audioBtn.innerText = "🔊 Hear definition";
+    audioBtn.onclick = speakDefinition;
+    // auto-play the definition to assist learners
+    speakDefinition();
+    document.getElementById("spellingMode").style.display = "none";
+    document.getElementById("choiceMode").style.display = "block";
+    loadChoices();
+  } else { // spelling mode
+    document.getElementById("definition").innerText = "Spell the word you hear.";
+    audioBtn.innerText = "🔊 Hear the word";
+    audioBtn.onclick = speakWord; // only plays word when the button is tapped
+    // do NOT auto-play the word; user must press the button
+    document.getElementById("spellingMode").style.display = "block";
+    document.getElementById("choiceMode").style.display = "none";
+  }
+
+  currentQIndex++;
+}
+
+/* ---------- Flip feedback ---------- */
+function flipCard(correct, msg){
+  document.getElementById("feedbackTitle").innerText = correct ? "🎉 Correct!" : "❌ Oops!";
+  document.getElementById("feedback").innerText = msg;
+  document.getElementById("cardInner").classList.add("flip");
+  if(correct){
+    score++;
+    streak++;
+    confetti();
+    flashOverlay("green");
+  } else {
+    missedWords.push(currentWord.word);
+    streak = 0;
+    flashOverlay("red");
+  }
+  document.getElementById("streakDisplay").innerText = "🔥 Streak: " + streak;
+  answered++;
+  let percent = (answered / questions.length) * 100;
+  document.getElementById("progress").style.width = percent + "%";
+}
+
+/* ---------- Spelling check ---------- */
+function checkSpelling(){
+  const ans = document.getElementById("answer").value.trim().toLowerCase();
+  const correct = currentWord.word.toLowerCase();
+  if(ans === correct){
+    flipCard(true, `The word is: ${currentWord.word}`);
+  } else if(isNearMiss(ans, correct)){
+    flipCard(false, `Almost! Correct: ${currentWord.word}`);
+  } else {
+    flipCard(false, `Correct spelling: ${currentWord.word}`);
+  }
+}
+
+/* ---------- Choice loader ---------- */
+function loadChoices(){
+  const box = document.getElementById("choices");
+  box.innerHTML = "";
+  let opts = [currentWord.word];
+  while(opts.length < 4){
+    let w = baseWords[Math.floor(Math.random() * baseWords.length)].word;
+    if(!opts.includes(w)) opts.push(w);
+  }
+  opts.sort(() => Math.random() - 0.5);
+  opts.forEach(opt=>{
+    const btn = document.createElement("button");
+    btn.className = "choice-btn";
+    btn.innerText = opt;
+    btn.onclick = () => checkChoice(opt);
+    box.appendChild(btn);
+  });
+}
+function checkChoice(selected){
+  if(selected === currentWord.word){
+    flipCard(true, `The word is: ${currentWord.word}`);
+  } else {
+    flipCard(false, `Correct answer: ${currentWord.word}`);
+  }
+}
+
+/* ---------- Near-miss (typo) ---------- */
+function isNearMiss(a, b){
+  if(!a) return false;
+  const d = levenshtein(a, b);
+  return d <= 2 && a.length > 3;
+}
+function levenshtein(a, b){
+  const m = [];
+  for(let i = 0; i <= a.length; i++) { m[i] = [i]; }
+  for(let j = 1; j <= b.length; j++) { m[0][j] = j; }
+  for(let i = 1; i <= a.length; i++){
+    for(let j = 1; j <= b.length; j++){
+      m[i][j] = a[i-1] === b[j-1] ? m[i-1][j-1] : 1 + Math.min(m[i-1][j-1], m[i][j-1], m[i-1][j]);
+    }
+  }
+  return m[a.length][b.length];
+}
+
+/* ---------- Audio helpers ---------- */
+function speakDefinition(){
+  if(!currentWord) return;
+  speakText(currentWord.definition);
+}
+function speakWord(){
+  if(!currentWord) return;
+  speakText(currentWord.word);
+}
+function speakText(text){
+  if('speechSynthesis' in window){
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1;
+    utter.pitch = 1;
+    utter.lang = "en-US";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+/* ---------- Confetti & flash overlay ---------- */
+function confetti(){
+  for(let i=0;i<20;i++){
+    const c=document.createElement("div");
+    c.className="confetti";
+    c.style.left=Math.random()*100+"vw";
+    c.style.background=`hsl(${Math.random()*360},100%,50%)`;
+    c.style.animationDuration=2+Math.random()*2+"s";
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(),4000);
+  }
+}
+function flashOverlay(color){
+  const o=document.getElementById("flashOverlay");
+  o.style.background = color;
+  o.style.opacity = "0.6";
+  setTimeout(()=>{ o.style.opacity = "0"; }, 500);
+}
+
+/* ---------- End of game & animate percent ---------- */
+function endGame(){
+  document.getElementById("gameCard").style.display = "none";
+  const end = document.getElementById("endScreen");
+  end.style.display = "flex";
+  document.getElementById("scoreSummary").innerText = `You got ${score} out of ${questions.length} correct! 🎯`;
+  if(missedWords.length > 0){
+    document.getElementById("missedList").innerHTML = "<strong>Review these words:</strong><br>" + missedWords.join(", ");
+  } else {
+    document.getElementById("missedList").innerText = "Perfect score! 🎉";
+  }
+  animatePercent(Math.round((score / questions.length) * 100));
+}
+
+/* animate percentage counting up */
+function animatePercent(final){
+  let n = 0;
+  const el = document.getElementById("percentDisplay");
+  el.innerText = "0%";
+  const step = Math.max(1, Math.floor(final / 60));
+  const interval = setInterval(()=>{
+    n += step;
+    if(n >= final){
+      el.innerText = final + "%";
+      clearInterval(interval);
+    } else {
+      el.innerText = n + "%";
+    }
+  }, 18);
+}
+
+/* ---------- Restart ---------- */
+function restartGame(){
+  answered = 0; score = 0; streak = 0; missedWords = []; currentQIndex = 0;
+  document.getElementById("progress").style.width = "0%";
+  document.getElementById("endScreen").style.display = "none";
+  document.getElementById("gameCard").style.display = "block";
+  document.getElementById("streakDisplay").innerText = "🔥 Streak: 0";
+  // shuffle questions again for variety
+  questions = questions.sort(()=>Math.random()-0.5);
+  nextQuestion();
+}
+
+/* ---------- Start ---------- */
+nextQuestion();
+</script>
+</body>
+</html>
